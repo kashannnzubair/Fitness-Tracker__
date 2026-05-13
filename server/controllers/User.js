@@ -4,26 +4,39 @@ import dotenv from "dotenv";
 import { createError } from "../error.js";
 import User from "../models/User.js";
 import Workout from "../models/Workout.js";
+import { sendOTPEmail } from "../utils/sendEmail.js";
 
 dotenv.config();
 
+// --- AUTHENTICATION ---
+
 export const UserRegister = async (req, res, next) => {
   try {
-    const { email, password, name, img } = req.body;
+    const { email, password, name, img, height, weight, fitnessGoal } = req.body;
     const existingUser = await User.findOne({ email }).exec();
     if (existingUser) return next(createError(409, "Email is already in use."));
 
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(password, salt);
 
-    const user = new User({ name, email, password: hashedPassword, img });
+    const user = new User({ 
+      name, 
+      email, 
+      password: hashedPassword, 
+      img,
+      height: height || 0,
+      weight: weight || 0,
+      fitnessGoal: fitnessGoal || "maintain"
+    });
     const createdUser = await user.save();
     
     const secret = process.env.JWT_SECRET || "trackerbyfitness";
     const token = jwt.sign({ id: createdUser._id }, secret, { expiresIn: "9999 years" });
     
-    return res.status(200).json({ token, user });
-  } catch (error) { return next(error); }
+    return res.status(200).json({ token, user: createdUser });
+  } catch (error) { 
+    return next(error); 
+  }
 };
 
 export const UserLogin = async (req, res, next) => {
@@ -39,7 +52,150 @@ export const UserLogin = async (req, res, next) => {
     const token = jwt.sign({ id: user._id }, secret, { expiresIn: "9999 years" });
 
     return res.status(200).json({ token, user });
-  } catch (error) { return next(error); }
+  } catch (error) { 
+    return next(error); 
+  }
+};
+
+// --- FORGOT PASSWORD (NEW) ---
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return next(createError(400, "Email is required"));
+    }
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(createError(404, "User not found with this email"));
+    }
+    
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    user.resetOTP = otp;
+    user.resetOTPExpiry = otpExpiry;
+    await user.save();
+    
+    // Log OTP to console for testing
+    console.log(`🔐 OTP for ${email}: ${otp}`);
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: `OTP sent to your email. For testing, use: ${otp}`,
+      otp: otp // Remove in production
+    });
+    
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const verifyOTP = async (req, res, next) => {
+  try {
+    const { email } = req.params;
+    const { otp } = req.body;
+    
+    if (!otp) {
+      return next(createError(400, "OTP is required"));
+    }
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(createError(404, "User not found"));
+    }
+    
+    if (!user.resetOTP || user.resetOTP !== otp) {
+      return next(createError(400, "Invalid OTP"));
+    }
+    
+    if (user.resetOTPExpiry < new Date()) {
+      return next(createError(400, "OTP has expired. Please request a new one."));
+    }
+    
+    user.isOTPVerified = true;
+    await user.save();
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: "OTP verified successfully" 
+    });
+    
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { email } = req.params;
+    const { newPassword, confirmPassword } = req.body;
+    
+    if (!newPassword || !confirmPassword) {
+      return next(createError(400, "All fields are required"));
+    }
+    
+    if (newPassword !== confirmPassword) {
+      return next(createError(400, "Passwords do not match"));
+    }
+    
+    if (newPassword.length < 6) {
+      return next(createError(400, "Password must be at least 6 characters"));
+    }
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(createError(404, "User not found"));
+    }
+    
+    // Hash new password
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync(newPassword, salt);
+    
+    user.password = hashedPassword;
+    user.resetOTP = null;
+    user.resetOTPExpiry = null;
+    user.isOTPVerified = false;
+    await user.save();
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: "Password changed successfully" 
+    });
+    
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// --- PROFILE & DASHBOARD ---
+
+export const updateUserProfile = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    const { gender, weight, height, weeklyGoal, fitnessGoal, name, img } = req.body;
+    
+    const updateData = {};
+    if (gender !== undefined) updateData.gender = gender;
+    if (weight !== undefined) updateData.weight = weight;
+    if (height !== undefined) updateData.height = height;
+    if (weeklyGoal !== undefined) updateData.weeklyGoal = weeklyGoal;
+    if (fitnessGoal !== undefined) updateData.fitnessGoal = fitnessGoal;
+    if (name !== undefined) updateData.name = name;
+    if (img !== undefined) updateData.img = img;
+    
+    const updatedUser = await User.findByIdAndUpdate(
+      userId, 
+      { $set: updateData }, 
+      { new: true }
+    );
+    return res.status(200).json({ user: updatedUser }); 
+  } catch (error) { 
+    next(error); 
+  }
 };
 
 export const getUserDashboard = async (req, res, next) => {
@@ -53,7 +209,7 @@ export const getUserDashboard = async (req, res, next) => {
     const endToday = new Date();
     endToday.setHours(23, 59, 59, 999);
 
-    // Today's calories
+    // 1. Today's Stats
     const totalCaloriesBurnt = await Workout.aggregate([
       { $match: { user: user._id, date: { $gte: startToday, $lte: endToday } } },
       { $group: { _id: null, total: { $sum: "$caloriesBurned" } } },
@@ -63,57 +219,50 @@ export const getUserDashboard = async (req, res, next) => {
       user: userId, date: { $gte: startToday, $lte: endToday }
     });
 
-    const calories = totalCaloriesBurnt[0]?.total || 0;
+    // 2. Average Calories Calculation
+    const avgStats = await Workout.aggregate([
+      { $match: { user: user._id } },
+      { $group: { _id: null, avg: { $avg: "$caloriesBurned" } } }
+    ]);
 
-    // Last 7 days weekly data
-    const last7Days = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      last7Days.push(d);
-    }
+    // 3. Weekly Graph Data (Last 7 Days)
+    const startOf7Days = new Date();
+    startOf7Days.setDate(startOf7Days.getDate() - 6);
+    startOf7Days.setHours(0,0,0,0);
 
-    const weeklyData = await Promise.all(
-      last7Days.map(async (day) => {
-        const start = new Date(day); start.setHours(0, 0, 0, 0);
-        const end   = new Date(day); end.setHours(23, 59, 59, 999);
-        const result = await Workout.aggregate([
-          { $match: { user: user._id, date: { $gte: start, $lte: end } } },
-          { $group: { _id: null, total: { $sum: "$caloriesBurned" } } },
-        ]);
-        return {
-          week: `${day.getMonth() + 1}/${day.getDate()}`,
-          calories: result[0]?.total || 0,
-        };
-      })
-    );
+    const weeklyData = await Workout.aggregate([
+      { $match: { user: user._id, date: { $gte: startOf7Days } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+          calories: { $sum: "$caloriesBurned" }
+        }
+      },
+      { $sort: { "_id": 1 } }
+    ]);
 
-    // Pie chart — calories by category
+    // 4. Pie Chart Data
     const categoryData = await Workout.aggregate([
       { $match: { user: user._id, date: { $gte: startToday, $lte: endToday } } },
       { $group: { _id: "$category", total: { $sum: "$caloriesBurned" } } },
     ]);
 
-    const pieChartData = categoryData.map((c, i) => ({
-      id: i,
-      value: c.total,
-      label: c._id,
-    }));
-
     return res.status(200).json({
-      totalCaloriesBurnt: calories,
+      totalCaloriesBurnt: totalCaloriesBurnt[0]?.total || 0,
       totalWorkouts,
-      avgCaloriesBurntPerWorkout: totalWorkouts > 0 ? calories / totalWorkouts : 0,
-      totalWeeksCaloriesBurnt: {
-        weeks: weeklyData.map(d => d.week),
-        caloriesBurned: weeklyData.map(d => d.calories),
-      },
-      pieChartData,
+      avgCaloriesBurnt: avgStats[0]?.avg || 0,
+      weeklyGoal: user.weeklyGoal || 4,
+      weeklyCompleted: weeklyData.length,
+      weeklyStats: weeklyData,
+      user: { name: user.name, gender: user.gender, weight: user.weight, height: user.height, fitnessGoal: user.fitnessGoal },
+      pieChartData: categoryData.map((c, i) => ({ id: i, value: c.total, label: c._id })),
     });
-  } catch (err) {
-    next(err);
+  } catch (err) { 
+    next(err); 
   }
 };
+
+// --- WORKOUT MANAGEMENT ---
 
 export const getWorkoutsByDate = async (req, res, next) => {
   try {
@@ -122,9 +271,15 @@ export const getWorkoutsByDate = async (req, res, next) => {
     const startOfDay = new Date(date.setHours(0,0,0,0));
     const endOfDay = new Date(date.setHours(23,59,59,999));
 
-    const todaysWorkouts = await Workout.find({ user: userId, date: { $gte: startOfDay, $lt: endOfDay } });
-    return res.status(200).json({ todaysWorkouts, totalCaloriesBurnt: 0 }); // Added default total
-  } catch (err) { next(err); }
+    const todaysWorkouts = await Workout.find({ 
+      user: userId, 
+      date: { $gte: startOfDay, $lte: endOfDay } 
+    });
+    
+    return res.status(200).json({ todaysWorkouts });
+  } catch (err) { 
+    next(err); 
+  }
 };
 
 export const addWorkout = async (req, res, next) => {
@@ -133,37 +288,20 @@ export const addWorkout = async (req, res, next) => {
     const { workoutString } = req.body;
     if (!workoutString) return next(createError(400, "Workout string is missing"));
 
-    // Split into lines and clean up
     const lines = workoutString.split("\n").map(l => l.trim()).filter(Boolean);
-
-    // Line 0: #Category
-    // Line 1: -WorkoutName
-    // Line 2: -Sets setsXReps reps
-    // Line 3: -Weight kg
-    // Line 4: -Duration min
-
-    if (lines.length < 5) {
-      return next(createError(400, "Please follow the workout format"));
-    }
+    if (lines.length < 5) return next(createError(400, "Please follow the workout format correctly."));
 
     const category = lines[0].replace("#", "").trim();
     const workoutName = lines[1].replace("-", "").trim();
+    
+    const setsReps = lines[2].match(/(\d+)/g);
+    const sets = setsReps ? parseInt(setsReps[0]) : 0;
+    const reps = setsReps && setsReps[1] ? parseInt(setsReps[1]) : 0;
 
-    // Parse "5 setsX15 reps" or "5 setsX15 reps"
-    const setsReps = lines[2].replace("-", "").trim();
-    const setsMatch = setsReps.match(/(\d+)\s*sets?\s*[xX]\s*(\d+)\s*reps?/i);
-    const sets = setsMatch ? parseInt(setsMatch[1]) : 0;
-    const reps = setsMatch ? parseInt(setsMatch[2]) : 0;
+    const weight = (lines[3].match(/(\d+)/)) ? parseInt(lines[3].match(/(\d+)/)[0]) : 0;
+    const duration = (lines[4].match(/(\d+)/)) ? parseInt(lines[4].match(/(\d+)/)[0]) : 0;
 
-    // Parse "30 kg"
-    const weightMatch = lines[3].match(/(\d+)/);
-    const weight = weightMatch ? parseInt(weightMatch[1]) : 0;
-
-    // Parse "10 min"
-    const durationMatch = lines[4].match(/(\d+)/);
-    const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
-
-    const caloriesBurned = duration * 5; // simple estimate
+    const caloriesBurned = duration * 5;
 
     const newWorkout = new Workout({
       user: userId,
@@ -178,8 +316,8 @@ export const addWorkout = async (req, res, next) => {
     });
 
     await newWorkout.save();
-    return res.status(201).json({ message: "Workout added successfully", workout: newWorkout });
-  } catch (err) {
-    next(err);
+    return res.status(201).json({ message: "Workout added successfully!", workout: newWorkout });
+  } catch (err) { 
+    next(err); 
   }
 };

@@ -1,25 +1,36 @@
 import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
-  currentUser: null,
+  user: null,
+  token: null,
+  isAuthenticated: false,
 };
 
-export const userSlice = createSlice({
+const userSlice = createSlice({
   name: "user",
   initialState,
   reducers: {
     loginSuccess: (state, action) => {
-      state.currentUser = action.payload.user;
-      // ✅ This saves the token so API interceptor can find it
-      localStorage.setItem("fittrack-app-token", action.payload.token);
+      const { user, token } = action.payload;
+      state.user = user;
+      state.token = token;
+      state.isAuthenticated = true;
+      // Store in localStorage as backup
+      localStorage.setItem("fittrack-app-token", token);
+      localStorage.setItem("fittrack-app-user", JSON.stringify(user));
     },
     logout: (state) => {
-      state.currentUser = null;
-      // ✅ FIXED: was "fitttrack" (3 t's) — token was never actually cleared
+      state.user = null;
+      state.token = null;
+      state.isAuthenticated = false;
       localStorage.removeItem("fittrack-app-token");
+      localStorage.removeItem("fittrack-app-user");
+    },
+    updateUser: (state, action) => {
+      state.user = { ...state.user, ...action.payload };
     },
   },
 });
 
-export const { loginSuccess, logout } = userSlice.actions;
+export const { loginSuccess, logout, updateUser } = userSlice.actions;
 export default userSlice.reducer;

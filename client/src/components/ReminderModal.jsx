@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import styled, { keyframes } from 'styled-components';
+import React, { useState, useEffect } from "react";
+import styled, { keyframes } from "styled-components";
 import { 
   Close, AccessTime, FitnessCenter, Restaurant, 
-  WaterDrop, NotificationsActive 
-} from '@mui/icons-material';
-import { IconButton, CircularProgress } from '@mui/material';
+  WaterDrop, NotificationsActive, Delete, Edit
+} from "@mui/icons-material";
+import { IconButton, CircularProgress, Checkbox, FormControlLabel } from "@mui/material";
+import { saveReminder, getReminders, deleteReminder } from "../api";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: scale(0.95); }
@@ -29,7 +30,7 @@ const Modal = styled.div`
   background: ${({ theme }) => theme.card};
   border-radius: 24px;
   width: 90%;
-  max-width: 450px;
+  max-width: 500px;
   animation: ${fadeIn} 0.3s ease;
   overflow: hidden;
   border: 1px solid ${({ theme }) => theme.border};
@@ -70,7 +71,7 @@ const TypeBtn = styled.button`
   background: ${({ $active, theme }) => $active ? theme.primary : theme.bgLight};
   border: 1px solid ${({ $active, theme }) => $active ? theme.primary : theme.border};
   border-radius: 12px;
-  color: ${({ $active, theme }) => $active ? 'white' : theme.text_primary};
+  color: ${({ $active, theme }) => $active ? "white" : theme.text_primary};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -124,6 +125,28 @@ const TimeInput = styled.input`
   }
 `;
 
+const DaysGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+`;
+
+const DayChip = styled.button`
+  padding: 8px 4px;
+  background: ${({ $active, theme }) => $active ? theme.primary : theme.bgLight};
+  border: 1px solid ${({ $active, theme }) => $active ? theme.primary : theme.border};
+  border-radius: 8px;
+  color: ${({ $active, theme }) => $active ? "white" : theme.text_primary};
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: scale(1.02);
+  }
+`;
+
 const Button = styled.button`
   width: 100%;
   padding: 14px;
@@ -152,6 +175,8 @@ const ReminderList = styled.div`
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid ${({ theme }) => theme.border};
+  max-height: 300px;
+  overflow-y: auto;
 `;
 
 const ReminderItem = styled.div`
@@ -162,6 +187,27 @@ const ReminderItem = styled.div`
   background: ${({ theme }) => theme.bgLight};
   border-radius: 10px;
   margin-bottom: 8px;
+  
+  &:hover {
+    background: ${({ theme }) => theme.primary + "10"};
+  }
+`;
+
+const ReminderInfo = styled.div`
+  flex: 1;
+  
+  .title {
+    font-weight: 600;
+    color: ${({ theme }) => theme.text_primary};
+  }
+  
+  .details {
+    font-size: 11px;
+    color: ${({ theme }) => theme.text_secondary};
+    margin-top: 4px;
+    display: flex;
+    gap: 12px;
+  }
 `;
 
 const DeleteBtn = styled.button`
@@ -169,92 +215,108 @@ const DeleteBtn = styled.button`
   border: none;
   color: #FF453A;
   cursor: pointer;
-  padding: 4px;
+  padding: 8px;
   
   &:hover {
     transform: scale(1.1);
   }
 `;
 
-const ReminderModal = ({ isOpen, onClose }) => {
-  const [reminderType, setReminderType] = useState('workout');
-  const [title, setTitle] = useState('');
-  const [time, setTime] = useState('09:00');
+const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const ReminderModal = ({ isOpen, onClose, onReminderUpdate }) => {
+  const [reminderType, setReminderType] = useState("workout");
+  const [title, setTitle] = useState("");
+  const [time, setTime] = useState("09:00");
+  const [selectedDays, setSelectedDays] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Load reminders from localStorage
-    const saved = localStorage.getItem('fittrack-reminders');
-    if (saved) {
-      setReminders(JSON.parse(saved));
+    if (isOpen) {
+      loadReminders();
     }
-  }, []);
+  }, [isOpen]);
 
-  const saveReminders = (newReminders) => {
-    localStorage.setItem('fittrack-reminders', JSON.stringify(newReminders));
-    setReminders(newReminders);
-    
-    // Request notification permission
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
+  const loadReminders = async () => {
+    try {
+      const res = await getReminders();
+      setReminders(res.data?.reminders || []);
+    } catch (err) {
+      console.log("Error loading reminders:", err);
     }
   };
 
-  const addReminder = () => {
-    if (!title) return;
+  const toggleDay = (day) => {
+    setSelectedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
+
+  const addReminder = async () => {
+    if (!title) {
+      alert("Please enter a reminder title");
+      return;
+    }
     
     setIsLoading(true);
-    const newReminder = {
-      id: Date.now(),
-      type: reminderType,
-      title,
-      time,
-      active: true,
-    };
-    
-    const updated = [...reminders, newReminder];
-    saveReminders(updated);
-    
-    // Schedule notification
-    scheduleNotification(newReminder);
-    
-    setTitle('');
-    setIsLoading(false);
-  };
-
-  const scheduleNotification = (reminder) => {
-    const [hours, minutes] = reminder.time.split(':');
-    const now = new Date();
-    const scheduled = new Date();
-    scheduled.setHours(parseInt(hours), parseInt(minutes), 0);
-    
-    if (scheduled < now) {
-      scheduled.setDate(scheduled.getDate() + 1);
-    }
-    
-    const timeUntil = scheduled - now;
-    
-    setTimeout(() => {
-      if (Notification.permission === 'granted') {
-        new Notification('FitTrack Reminder', {
-          body: reminder.title,
-          icon: '/logo192.png'
-        });
+    try {
+      const response = await saveReminder({
+        type: reminderType,
+        title: title,
+        time: time,
+        days: selectedDays,
+        active: true
+      });
+      
+      if (response.data.success) {
+        await loadReminders();
+        setTitle("");
+        setSelectedDays([]);
+        setTime("09:00");
+        if (onReminderUpdate) onReminderUpdate();
+        // Show browser notification
+        if (Notification.permission === "granted") {
+          new Notification("Reminder Set!", {
+            body: `${title} at ${time}`,
+            icon: "/logo192.png"
+          });
+        }
       }
-    }, timeUntil);
+    } catch (err) {
+      console.log("Error saving reminder:", err);
+      alert("Failed to save reminder");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const deleteReminder = (id) => {
-    const updated = reminders.filter(r => r.id !== id);
-    saveReminders(updated);
+  const handleDeleteReminder = async (id) => {
+    if (window.confirm("Delete this reminder?")) {
+      try {
+        await deleteReminder(id);
+        await loadReminders();
+        if (onReminderUpdate) onReminderUpdate();
+      } catch (err) {
+        console.log("Error deleting reminder:", err);
+      }
+    }
+  };
+
+  const getTypeIcon = (type) => {
+    switch(type) {
+      case "workout": return <FitnessCenter sx={{ fontSize: 14 }} />;
+      case "meal": return <Restaurant sx={{ fontSize: 14 }} />;
+      case "water": return <WaterDrop sx={{ fontSize: 14 }} />;
+      default: return <NotificationsActive sx={{ fontSize: 14 }} />;
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <Overlay onClick={onClose}>
-      <Modal onClick={(e) => e.stopPropagation()}>
+      <Modal onClick={e => e.stopPropagation()}>
         <Header>
           <Title>
             <NotificationsActive /> Set Reminder
@@ -267,20 +329,20 @@ const ReminderModal = ({ isOpen, onClose }) => {
         <Content>
           <ReminderType>
             <TypeBtn 
-              $active={reminderType === 'workout'} 
-              onClick={() => setReminderType('workout')}
+              $active={reminderType === "workout"} 
+              onClick={() => setReminderType("workout")}
             >
               <FitnessCenter sx={{ fontSize: 18 }} /> Workout
             </TypeBtn>
             <TypeBtn 
-              $active={reminderType === 'meal'} 
-              onClick={() => setReminderType('meal')}
+              $active={reminderType === "meal"} 
+              onClick={() => setReminderType("meal")}
             >
               <Restaurant sx={{ fontSize: 18 }} /> Meal
             </TypeBtn>
             <TypeBtn 
-              $active={reminderType === 'water'} 
-              onClick={() => setReminderType('water')}
+              $active={reminderType === "water"} 
+              onClick={() => setReminderType("water")}
             >
               <WaterDrop sx={{ fontSize: 18 }} /> Water
             </TypeBtn>
@@ -304,20 +366,49 @@ const ReminderModal = ({ isOpen, onClose }) => {
             />
           </InputGroup>
           
+          <InputGroup>
+            <Label>Repeat Days (Optional)</Label>
+            <DaysGrid>
+              {daysOfWeek.map(day => (
+                <DayChip
+                  key={day}
+                  $active={selectedDays.includes(day)}
+                  onClick={() => toggleDay(day)}
+                >
+                  {day}
+                </DayChip>
+              ))}
+            </DaysGrid>
+            {selectedDays.length === 0 && (
+              <div style={{ fontSize: 11, color: "#6C6C7A", marginTop: 6 }}>
+                No days selected = repeats daily
+              </div>
+            )}
+          </InputGroup>
+          
           <Button onClick={addReminder} disabled={isLoading || !title}>
             {isLoading ? <CircularProgress size={20} style={{ color: 'white' }} /> : <><AccessTime /> Set Reminder</>}
           </Button>
           
           {reminders.length > 0 && (
             <ReminderList>
-              <Label>Active Reminders</Label>
+              <Label style={{ marginBottom: 12 }}>Your Reminders</Label>
               {reminders.map(reminder => (
-                <ReminderItem key={reminder.id}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{reminder.title}</div>
-                    <div style={{ fontSize: 12, color: '#6C6C7A' }}>{reminder.time} • {reminder.type}</div>
-                  </div>
-                  <DeleteBtn onClick={() => deleteReminder(reminder.id)}>🗑️</DeleteBtn>
+                <ReminderItem key={reminder._id}>
+                  <ReminderInfo>
+                    <div className="title">
+                      {getTypeIcon(reminder.type)} {reminder.title}
+                    </div>
+                    <div className="details">
+                      <span>⏰ {reminder.time}</span>
+                      {reminder.days?.length > 0 && (
+                        <span>📅 {reminder.days.join(", ")}</span>
+                      )}
+                    </div>
+                  </ReminderInfo>
+                  <DeleteBtn onClick={() => handleDeleteReminder(reminder._id)}>
+                    <Delete sx={{ fontSize: 18 }} />
+                  </DeleteBtn>
                 </ReminderItem>
               ))}
             </ReminderList>

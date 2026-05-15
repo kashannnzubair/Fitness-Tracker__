@@ -1,93 +1,102 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import styled from "styled-components";
-import LogoImage from "../utils/Images/Logo.png";
-import AuthImage from "../utils/Images/AuthImage.jpg";
 import SignIn from "../components/SignIn";
 import SignUp from "../components/SignUp";
 
 const Container = styled.div`
   flex: 1;
-  height: 100%;
+  height: 100vh;
   display: flex;
-  background: ${({ theme }) => theme.bg};
+  background: #0d0d0d;
   @media (max-width: 700px) {
     flex-direction: column;
   }
 `;
+
 const Left = styled.div`
   flex: 1;
   position: relative;
+  background: url('https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=900&q=80') center/cover;
   @media (max-width: 700px) {
     display: none;
   }
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(46,125,50,0.3));
+  }
 `;
-const Logo = styled.img`
+
+const LeftContent = styled.div`
   position: absolute;
-  width: 70px;
-  top: 40px;
-  left: 60px;
-  z-index: 10;
-`;
-const Image = styled.img`
-  position: relative;
-  height: 100%;
-  width: 100%;
-  object-fit: cover;
+  bottom: 48px;
+  left: 48px;
+  color: white;
+  z-index: 1;
+  h2 {
+    font-size: 44px;
+    margin: 0;
+    line-height: 1.2;
+  }
+  p {
+    font-size: 17px;
+    opacity: 0.8;
+    margin-top: 10px;
+  }
 `;
 
 const Right = styled.div`
   flex: 1;
-  position: relative;
   display: flex;
   flex-direction: column;
-  padding: 40px;
-  gap: 16px;
   align-items: center;
   justify-content: center;
-`;
-
-const Text = styled.div`
-  font-size: 16px;
-  text-align: center;
-  color: ${({ theme }) => theme.text_secondary};
-  margin-top: 16px;
-  @media (max-width: 400px) {
-    font-size: 14px;
-  }
-`;
-const TextButton = styled.span`
-  color: ${({ theme }) => theme.primary};
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: 600;
+  padding: 40px;
+  background: #111827;
 `;
 
 const Authentication = () => {
-  const [login, setLogin] = useState(false);
+  const location = useLocation();
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('signup') === 'true') {
+      setIsSignUp(true);
+    }
+  }, [location]);
+
   return (
     <Container>
       <Left>
-        <Logo src={LogoImage} />
-        <Image src={AuthImage} />
+        <LeftContent>
+          <h2>Track Every Rep.<br />Own Every Day.</h2>
+          <p>Your fitness journey starts here</p>
+        </LeftContent>
       </Left>
       <Right>
-        {!login ? (
-          <>
-            <SignIn />
-            <Text>
-              Don't have an account?{" "}
-              <TextButton onClick={() => setLogin(true)}>SignUp</TextButton>
-            </Text>
-          </>
-        ) : (
-          <>
-            <SignUp />
-            <Text>
-              Already have an account?{" "}
-              <TextButton onClick={() => setLogin(false)}>SignIn</TextButton>
-            </Text>
-          </>
-        )}
+        {isSignUp ? <SignUp /> : <SignIn />}
+        <p style={{ color: "#888", marginTop: 20 }}>
+          {isSignUp ? "Already have an account? " : "New to FitTrack? "}
+          <button
+            onClick={() => setIsSignUp(!isSignUp)}
+            style={{
+              background: "none",
+              border: "none",
+              color: isSignUp ? "#66bb6a" : "#42a5f5",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: "14px",
+            }}
+          >
+            {isSignUp ? "Sign In" : "Create Account ✨"}
+          </button>
+        </p>
       </Right>
     </Container>
   );

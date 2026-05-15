@@ -1,18 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useState, useRef } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import styled, { keyframes } from 'styled-components';
+import { Avatar, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import { 
-  Notifications, 
-  FitnessCenter, 
-  Straighten, 
-  Language,
-  DarkMode,
-  LightMode,
-  Save,
-  VolumeUp,
-  VolumeOff
+  Edit, Save, Cancel, PhotoCamera, 
+  Email, Person, Lock, CheckCircle 
 } from '@mui/icons-material';
-import { Switch, FormControlLabel, CircularProgress } from '@mui/material';
+import axios from 'axios';
+import { updateUserProfile } from '../api';
+import { loginSuccess } from '../redux/reducers/userSlice';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -27,8 +23,17 @@ const Container = styled.div`
 `;
 
 const Wrapper = styled.div`
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
+`;
+
+const Card = styled.div`
+  background: ${({ theme }) => theme.card};
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 10px 30px ${({ theme }) => theme.shadow};
+  border: 1px solid ${({ theme }) => theme.border};
+  animation: ${fadeIn} 0.5s ease;
 `;
 
 const Title = styled.h1`
@@ -45,306 +50,379 @@ const Subtitle = styled.p`
   margin-bottom: 32px;
 `;
 
-const Card = styled.div`
-  background: ${({ theme }) => theme.card};
-  border: 1px solid ${({ theme }) => theme.border};
-  border-radius: 24px;
-  padding: 24px;
+const AvatarSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
+`;
+
+const AvatarWrapper = styled.div`
+  position: relative;
+  cursor: pointer;
+`;
+
+const StyledAvatar = styled(Avatar)`
+  width: 120px !important;
+  height: 120px !important;
+  border: 3px solid ${({ theme }) => theme.primary};
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+`;
+
+const UploadBtn = styled.div`
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: ${({ theme }) => theme.primary};
+  border-radius: 50%;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: scale(1.1);
+  }
+`;
+
+const FormGroup = styled.div`
   margin-bottom: 24px;
-  animation: ${fadeIn} 0.5s ease;
 `;
 
-const CardTitle = styled.h3`
-  font-size: 18px;
-  font-weight: 700;
+const Label = styled.label`
+  display: block;
   color: ${({ theme }) => theme.text_primary};
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid ${({ theme }) => theme.border};
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 14px;
 `;
 
-const SettingRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid ${({ theme }) => theme.border + "40"};
-  
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const SettingLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  
-  .icon {
-    color: ${({ theme }) => theme.primary};
-  }
-  
-  .title {
-    font-weight: 600;
-    color: ${({ theme }) => theme.text_primary};
-  }
-  
-  .desc {
-    font-size: 12px;
-    color: ${({ theme }) => theme.text_secondary};
-    margin-top: 2px;
-  }
-`;
-
-const Select = styled.select`
-  padding: 8px 16px;
+const Input = styled.input`
+  width: 100%;
+  padding: 14px 16px;
   background: ${({ theme }) => theme.bgLight};
   border: 1px solid ${({ theme }) => theme.border};
-  border-radius: 10px;
+  border-radius: 12px;
   color: ${({ theme }) => theme.text_primary};
-  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
   
   &:focus {
     outline: none;
     border-color: ${({ theme }) => theme.primary};
+    box-shadow: 0 0 0 3px ${({ theme }) => theme.primary + "20"};
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const Row = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
   }
 `;
 
 const Button = styled.button`
-  padding: 10px 20px;
-  background: ${({ theme }) => theme.gradient};
-  border: none;
-  border-radius: 10px;
-  color: white;
+  padding: 12px 24px;
+  border-radius: 12px;
   font-weight: 600;
   cursor: pointer;
-  display: flex;
+  transition: all 0.3s ease;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   
-  &:hover {
-    transform: translateY(-2px);
+  ${({ $primary, theme }) => $primary ? `
+    background: ${theme.gradient};
+    color: white;
+    border: none;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px ${theme.primary + "40"};
+    }
+  ` : `
+    background: transparent;
+    color: ${theme.text_secondary};
+    border: 1px solid ${theme.border};
+    
+    &:hover {
+      border-color: ${theme.red};
+      color: ${theme.red};
+    }
+  `}
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 `;
 
-const Settings = ({ toggleTheme, isDark }) => {
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin-top: 32px;
+`;
+
+const SuccessMessage = styled.div`
+  background: #34C75920;
+  color: #34C759;
+  padding: 12px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+`;
+
+const Profile = () => {
+  const dispatch = useDispatch();
   const user = useSelector(state => state.user?.user);
+  const token = useSelector(state => state.user?.token);
   
-  const [settings, setSettings] = useState({
-    notifications: true,
-    workoutReminders: true,
-    mealReminders: false,
-    soundEffects: true,
-    units: 'kg', // kg or lbs
-    distanceUnit: 'km', // km or miles
-    language: 'en',
-    autoBackup: true,
+  const [formData, setFormData] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
   });
-  
+  const [profilePic, setProfilePic] = useState(user?.img || null);
+  const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const fileInputRef = useRef();
 
-  useEffect(() => {
-    // Load saved settings from localStorage
-    const savedSettings = localStorage.getItem('fittrack-settings');
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    }
-  }, []);
-
-  const saveSettings = () => {
-    setIsLoading(true);
-    localStorage.setItem('fittrack-settings', JSON.stringify(settings));
-    setMessage('Settings saved successfully!');
-    setTimeout(() => setMessage(''), 3000);
-    setIsLoading(false);
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const updateSetting = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be under 2MB');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const imgBase64 = reader.result;
+      setProfilePic(imgBase64);
+      
+      // Upload to server
+      try {
+        setIsLoading(true);
+        const res = await axios.patch('http://localhost:8000/api/user/profile', 
+          { img: imgBase64 },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        // Update Redux store with new image
+        dispatch(loginSuccess({ 
+          token: token, 
+          user: { ...user, img: imgBase64 } 
+        }));
+        
+        // Also update localStorage
+        localStorage.setItem("fittrack-app-user", JSON.stringify({ ...user, img: imgBase64 }));
+        
+        setMessage('Profile picture updated!');
+        setTimeout(() => setMessage(''), 3000);
+      } catch (err) {
+        setError('Failed to update profile picture');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdateProfile = async () => {
+    setError('');
+    setMessage('');
+    setIsLoading(true);
+    
+    try {
+      const updateData = {
+        name: formData.name,
+        email: formData.email,
+      };
+      
+      if (formData.newPassword) {
+        if (formData.newPassword !== formData.confirmPassword) {
+          setError('New passwords do not match');
+          setIsLoading(false);
+          return;
+        }
+        if (formData.newPassword.length < 6) {
+          setError('Password must be at least 6 characters');
+          setIsLoading(false);
+          return;
+        }
+        updateData.currentPassword = formData.currentPassword;
+        updateData.newPassword = formData.newPassword;
+      }
+      
+      const res = await axios.patch('http://localhost:8000/api/user/profile', 
+        updateData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Update Redux store
+      dispatch(loginSuccess({ 
+        token: token, 
+        user: { ...user, name: formData.name, email: formData.email } 
+      }));
+      
+      // Update localStorage
+      localStorage.setItem("fittrack-app-user", JSON.stringify({ ...user, name: formData.name, email: formData.email }));
+      
+      setMessage('Profile updated successfully!');
+      setIsEditing(false);
+      setFormData({
+        ...formData,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Update failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <Container>
       <Wrapper>
-        <Title>⚙️ Settings</Title>
-        <Subtitle>Customize your app preferences</Subtitle>
-        
-        {message && (
-          <div style={{ 
-            background: '#34C75920', 
-            color: '#34C759', 
-            padding: 12, 
-            borderRadius: 12, 
-            marginBottom: 20,
-            textAlign: 'center'
-          }}>
-            {message}
-          </div>
-        )}
-        
-        {/* Appearance Settings */}
         <Card>
-          <CardTitle>
-            <DarkMode /> Appearance
-          </CardTitle>
-          <SettingRow>
-            <SettingLabel>
-              <div className="icon">{isDark ? <DarkMode /> : <LightMode />}</div>
-              <div>
-                <div className="title">Dark Mode</div>
-                <div className="desc">Switch between light and dark theme</div>
-              </div>
-            </SettingLabel>
-            <Switch 
-              checked={isDark} 
-              onChange={toggleTheme}
-              sx={{
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: '#0A84FF',
-                },
-              }}
+          <Title>My Profile</Title>
+          <Subtitle>Manage your account settings and preferences</Subtitle>
+          
+          {message && <SuccessMessage><CheckCircle /> {message}</SuccessMessage>}
+          {error && <SuccessMessage style={{ background: '#FF453A20', color: '#FF453A' }}>{error}</SuccessMessage>}
+          
+          <AvatarSection>
+            <AvatarWrapper onClick={() => fileInputRef.current?.click()}>
+              <StyledAvatar src={profilePic}>
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </StyledAvatar>
+              <UploadBtn>
+                <PhotoCamera sx={{ fontSize: 18, color: 'white' }} />
+              </UploadBtn>
+            </AvatarWrapper>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleImageUpload}
             />
-          </SettingRow>
-        </Card>
-        
-        {/* Notification Settings */}
-        <Card>
-          <CardTitle>
-            <Notifications /> Notifications
-          </CardTitle>
-          <SettingRow>
-            <SettingLabel>
-              <div>
-                <div className="title">Push Notifications</div>
-                <div className="desc">Receive notifications about your fitness journey</div>
-              </div>
-            </SettingLabel>
-            <Switch 
-              checked={settings.notifications} 
-              onChange={(e) => updateSetting('notifications', e.target.checked)}
+            <p style={{ marginTop: 12, color: '#6C6C7A', fontSize: 12 }}>
+              Click to change profile picture
+            </p>
+          </AvatarSection>
+          
+          <FormGroup>
+            <Label><Person sx={{ fontSize: 16, marginRight: 4 }} /> Full Name</Label>
+            <Input
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              disabled={!isEditing}
+              placeholder="Enter your name"
             />
-          </SettingRow>
-          <SettingRow>
-            <SettingLabel>
-              <div>
-                <div className="title">Workout Reminders</div>
-                <div className="desc">Get reminded about your daily workouts</div>
-              </div>
-            </SettingLabel>
-            <Switch 
-              checked={settings.workoutReminders} 
-              onChange={(e) => updateSetting('workoutReminders', e.target.checked)}
-              disabled={!settings.notifications}
+          </FormGroup>
+          
+          <FormGroup>
+            <Label><Email sx={{ fontSize: 16, marginRight: 4 }} /> Email Address</Label>
+            <Input
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              disabled={!isEditing}
+              placeholder="Enter your email"
             />
-          </SettingRow>
-          <SettingRow>
-            <SettingLabel>
-              <div>
-                <div className="title">Meal Reminders</div>
-                <div className="desc">Get reminded about meal times</div>
-              </div>
-            </SettingLabel>
-            <Switch 
-              checked={settings.mealReminders} 
-              onChange={(e) => updateSetting('mealReminders', e.target.checked)}
-              disabled={!settings.notifications}
-            />
-          </SettingRow>
+          </FormGroup>
+          
+          {isEditing && (
+            <>
+              <FormGroup>
+                <Label><Lock sx={{ fontSize: 16, marginRight: 4 }} /> Current Password (required to change password)</Label>
+                <Input
+                  name="currentPassword"
+                  type="password"
+                  value={formData.currentPassword}
+                  onChange={handleChange}
+                  placeholder="Enter current password"
+                />
+              </FormGroup>
+              
+              <Row>
+                <FormGroup>
+                  <Label>New Password</Label>
+                  <Input
+                    name="newPassword"
+                    type="password"
+                    value={formData.newPassword}
+                    onChange={handleChange}
+                    placeholder="Enter new password"
+                  />
+                </FormGroup>
+                <FormGroup>
+                  <Label>Confirm New Password</Label>
+                  <Input
+                    name="confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Confirm new password"
+                  />
+                </FormGroup>
+              </Row>
+            </>
+          )}
+          
+          <ButtonGroup>
+            {!isEditing ? (
+              <Button $primary onClick={() => setIsEditing(true)}>
+                <Edit /> Edit Profile
+              </Button>
+            ) : (
+              <>
+                <Button onClick={() => setIsEditing(false)} disabled={isLoading}>
+                  <Cancel /> Cancel
+                </Button>
+                <Button $primary onClick={handleUpdateProfile} disabled={isLoading}>
+                  {isLoading ? <CircularProgress size={20} /> : <><Save /> Save Changes</>}
+                </Button>
+              </>
+            )}
+          </ButtonGroup>
         </Card>
-        
-        {/* Units Settings */}
-        <Card>
-          <CardTitle>
-            <Straighten /> Units & Measurement
-          </CardTitle>
-          <SettingRow>
-            <SettingLabel>
-              <div>
-                <div className="title">Weight Unit</div>
-                <div className="desc">Choose your preferred weight unit</div>
-              </div>
-            </SettingLabel>
-            <Select 
-              value={settings.units} 
-              onChange={(e) => updateSetting('units', e.target.value)}
-            >
-              <option value="kg">Kilograms (kg)</option>
-              <option value="lbs">Pounds (lbs)</option>
-            </Select>
-          </SettingRow>
-          <SettingRow>
-            <SettingLabel>
-              <div>
-                <div className="title">Distance Unit</div>
-                <div className="desc">Choose your preferred distance unit</div>
-              </div>
-            </SettingLabel>
-            <Select 
-              value={settings.distanceUnit} 
-              onChange={(e) => updateSetting('distanceUnit', e.target.value)}
-            >
-              <option value="km">Kilometers (km)</option>
-              <option value="miles">Miles (mi)</option>
-            </Select>
-          </SettingRow>
-        </Card>
-        
-        {/* Sound Settings */}
-        <Card>
-          <CardTitle>
-            <VolumeUp /> Sound
-          </CardTitle>
-          <SettingRow>
-            <SettingLabel>
-              <div>
-                <div className="title">Sound Effects</div>
-                <div className="desc">Play sounds for notifications and actions</div>
-              </div>
-            </SettingLabel>
-            <Switch 
-              checked={settings.soundEffects} 
-              onChange={(e) => updateSetting('soundEffects', e.target.checked)}
-            />
-          </SettingRow>
-        </Card>
-        
-        {/* Language Settings */}
-        <Card>
-          <CardTitle>
-            <Language /> Language
-          </CardTitle>
-          <SettingRow>
-            <SettingLabel>
-              <div>
-                <div className="title">App Language</div>
-                <div className="desc">Choose your preferred language</div>
-              </div>
-            </SettingLabel>
-            <Select 
-              value={settings.language} 
-              onChange={(e) => updateSetting('language', e.target.value)}
-            >
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="ur">اردو</option>
-            </Select>
-          </SettingRow>
-        </Card>
-        
-        {/* Save Button */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-          <Button onClick={saveSettings} disabled={isLoading}>
-            {isLoading ? <CircularProgress size={20} style={{ color: 'white' }} /> : <><Save /> Save All Settings</>}
-          </Button>
-        </div>
       </Wrapper>
     </Container>
   );
 };
 
-export default Settings;
+export default Profile;

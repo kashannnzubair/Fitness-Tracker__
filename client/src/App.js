@@ -8,10 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Workouts from "./pages/Workouts";
 import Tutorials from "./pages/Tutorials";
 import Diet from "./pages/Diet";
-import ForgotPassword from './pages/ForgotPassword';
-import VerifyOTP from './pages/VerifyOTP';
-import ChangePassword from './pages/ChangePassword';
-import Contact from "./pages/Contact";
+import Feedback from "./pages/Feedback";
 import Profile from "./pages/Profile";
 import Progress from "./pages/Progress";
 import Reports from "./pages/Reports";
@@ -41,12 +38,14 @@ function App() {
   const dispatch = useDispatch();
   const [isDark, setIsDark] = useState(() => {
     const savedTheme = localStorage.getItem("fittrack-theme");
-    return savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    return savedTheme === "dark" || false;
   });
 
   const toggleTheme = () => {
-    setIsDark(!isDark);
-    localStorage.setItem("fittrack-theme", !isDark ? "dark" : "light");
+    const newTheme = !isDark;
+    setIsDark(newTheme);
+    localStorage.setItem("fittrack-theme", newTheme ? "dark" : "light");
+    console.log("Theme toggled to:", newTheme ? "dark" : "light");
   };
 
   useEffect(() => {
@@ -71,11 +70,6 @@ function App() {
         transition: "background 0.3s ease"
       }}>
         <Routes>
-          {/* Public Routes - Forgot Password Flow */}
-          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
-          <Route path="/verify-otp/:email" element={<PublicRoute><VerifyOTP /></PublicRoute>} />
-          <Route path="/change-password/:email" element={<PublicRoute><ChangePassword /></PublicRoute>} />
-          
           {/* Auth Routes - No Navbar */}
           <Route path="/auth" element={<PublicRoute><SignIn /></PublicRoute>} />
           <Route path="/auth/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
@@ -113,7 +107,6 @@ function App() {
             </PrivateRoute>
           } />
           
-          {/* NEW ROUTES - Profile, Progress, Reports, Settings */}
           <Route path="/profile" element={
             <PrivateRoute>
               <Layout toggleTheme={toggleTheme} isDark={isDark}>
@@ -141,15 +134,15 @@ function App() {
           <Route path="/settings" element={
             <PrivateRoute>
               <Layout toggleTheme={toggleTheme} isDark={isDark}>
-                <Settings toggleTheme={toggleTheme} isDark={isDark} />
+                <Settings />
               </Layout>
             </PrivateRoute>
           } />
           
-          <Route path="/contact" element={
+          <Route path="/feedback" element={
             <PrivateRoute>
               <Layout toggleTheme={toggleTheme} isDark={isDark}>
-                <Contact />
+                <Feedback />
               </Layout>
             </PrivateRoute>
           } />

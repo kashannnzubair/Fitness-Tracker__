@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import styled, { keyframes } from "styled-components";
+import { saveFeedback } from "../api";
 import { 
   EmailRounded, SupportAgentRounded, BugReportRounded, 
-  StarRounded, SendRounded, CheckCircleRounded,
+  StarRounded, SendRounded,
   PhoneRounded, AccessTimeRounded, Instagram, Facebook, Twitter 
 } from "@mui/icons-material";
+import { CircularProgress } from "@mui/material";
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(24px); }
@@ -282,6 +284,11 @@ const SubmitBtn = styled.button`
     transform: translateY(-2px);
     box-shadow: 0 5px 20px ${({ theme }) => theme.primary + "40"};
   }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const SuccessBanner = styled.div`
@@ -310,39 +317,59 @@ const SuccessBanner = styled.div`
   }
 `;
 
-const contactTypes = [
+const feedbackTypes = [
   { label: "Support", icon: <SupportAgentRounded />, value: "General Support" },
   { label: "Bug Report", icon: <BugReportRounded />, value: "Bug Report" },
   { label: "Feedback", icon: <StarRounded />, value: "Feedback" },
   { label: "General", icon: <EmailRounded />, value: "General Inquiry" },
 ];
 
-const Contact = () => {
+const Feedback = () => {
   const [type, setType] = useState("General Support");
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.name || !form.email || !form.message) {
       alert("Please fill in all required fields.");
       return;
     }
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setForm({ name: "", email: "", subject: "", message: "" });
-    }, 3000);
+    
+    setIsLoading(true);
+    try {
+      const response = await saveFeedback({
+        type: type,
+        name: form.name,
+        email: form.email,
+        subject: form.subject,
+        message: form.message
+      });
+      
+      if (response.data.success) {
+        setSubmitted(true);
+        setForm({ name: "", email: "", subject: "", message: "" });
+        setTimeout(() => setSubmitted(false), 3000);
+      } else {
+        alert(response.data.message || "Failed to send message");
+      }
+    } catch (err) {
+      console.log("Error submitting feedback:", err);
+      alert(err.response?.data?.message || "Failed to send message. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <Container>
       <Wrapper>
         <Header>
-          <Title>Contact & Support 💬</Title>
-          <Subtitle>Have questions? We're here to help. Reach out to us anytime.</Subtitle>
+          <Title>Feedback & Support 💬</Title>
+          <Subtitle>Have questions, found a bug, or want to share feedback? We'd love to hear from you.</Subtitle>
         </Header>
 
         <ContentGrid>
@@ -415,13 +442,13 @@ const Contact = () => {
               {submitted ? (
                 <SuccessBanner>
                   <div className="icon">✅</div>
-                  <h3>Message Sent Successfully!</h3>
-                  <p>Thanks for reaching out. We'll get back to you within 24 hours.</p>
+                  <h3>Feedback Submitted Successfully!</h3>
+                  <p>Thanks for your valuable feedback. We'll get back to you within 24 hours.</p>
                 </SuccessBanner>
               ) : (
                 <>
                   <TypeGrid>
-                    {contactTypes.map((t) => (
+                    {feedbackTypes.map((t) => (
                       <TypeBtn
                         key={t.label}
                         $active={type === t.value}
@@ -469,14 +496,14 @@ const Contact = () => {
                     <Label>Message *</Label>
                     <Textarea
                       name="message"
-                      placeholder="Please provide details about your inquiry..."
+                      placeholder="Please provide details about your inquiry or feedback..."
                       value={form.message}
                       onChange={handleChange}
                     />
                   </InputGroup>
 
-                  <SubmitBtn onClick={handleSubmit}>
-                    <SendRounded /> Send Message
+                  <SubmitBtn onClick={handleSubmit} disabled={isLoading}>
+                    {isLoading ? <CircularProgress size={20} style={{ color: 'white' }} /> : <><SendRounded /> Submit Feedback</>}
                   </SubmitBtn>
                 </>
               )}
@@ -488,4 +515,4 @@ const Contact = () => {
   );
 };
 
-export default Contact;
+export default Feedback;

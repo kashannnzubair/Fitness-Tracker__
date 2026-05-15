@@ -16,11 +16,11 @@ console.log("JWT Check:", process.env.JWT_SECRET ? "Loaded ✅" : "Missing ❌")
 
 app.use("/api/user/", UserRoutes);
 
-// ✅ console.error is now INSIDE the function where err exists
+// Error handler
 app.use((err, req, res, next) => {
   const status = err.status || 500;
   const message = err.message || "Something went wrong";
-  console.error("❌ Server Error:", err); // ← moved inside
+  console.error("❌ Server Error:", err);
   return res.status(status).json({
     success: false,
     status,

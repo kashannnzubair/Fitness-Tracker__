@@ -9,7 +9,19 @@
 html {
   scroll-behavior: smooth;
 }
+/* Add at the end of index.css */
+body {
+  transition: background-color 0.3s ease, color 0.2s ease;
+}
 
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: #1C1C2A;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #0A84FF;
+}
 body {
   margin: 0;
   padding: 0;

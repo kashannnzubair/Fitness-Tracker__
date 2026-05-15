@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+dotenv.config();
 
-// Create transporter
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -9,43 +10,83 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export const sendOTPEmail = async (email, otp, name) => {
-  const mailOptions = {
-    from: `"FitTrack" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "🔐 Password Reset OTP - FitTrack",
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Password Reset OTP</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #0d0d0d;">
-        <div style="max-width: 500px; margin: 40px auto; background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 20px; padding: 30px; text-align: center;">
-          <h1 style="color: #0A84FF; margin-bottom: 20px;">💪 FitTrack</h1>
-          <div style="background: #14141F; border-radius: 16px; padding: 25px;">
-            <h2 style="color: #fff;">Password Reset Request</h2>
-            <p style="color: #aaa;">Hello ${name || "User"},</p>
-            <p style="color: #aaa;">Your OTP for password reset is:</p>
-            <div style="margin: 25px 0;">
-              <span style="font-size: 36px; font-weight: 800; background: #0A84FF; color: white; padding: 12px 30px; border-radius: 12px; letter-spacing: 5px;">${otp}</span>
-            </div>
-            <p style="color: #aaa;">This OTP is valid for <strong style="color: #0A84FF;">10 minutes</strong>.</p>
-          </div>
-          <p style="color: #555; font-size: 11px; margin-top: 20px;">© 2024 FitTrack - Your Fitness Companion</p>
+// Send Signup OTP
+export const sendSignupOTP = async (email, otp, name) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; color: #fff;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #66bb6a; margin: 0;">💪 FitTrack</h1>
+        <p style="color: #888; margin: 5px 0 0;">Your Fitness Journey Starts Here</p>
+      </div>
+      
+      <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; text-align: center;">
+        <h2 style="margin: 0 0 10px 0;">Welcome ${name || "Fitness Enthusiast"}! 👋</h2>
+        <p style="color: #ccc; margin-bottom: 25px;">Use the OTP below to verify your email address:</p>
+        
+        <div style="font-size: 42px; font-weight: 800; letter-spacing: 8px; background: linear-gradient(135deg, #66bb6a, #4caf50); padding: 15px 25px; border-radius: 12px; display: inline-block; font-family: monospace;">
+          ${otp}
         </div>
-      </body>
-      </html>
-    `,
-  };
+        
+        <p style="margin-top: 25px; font-size: 14px; color: #888;">⏰ This OTP is valid for <strong style="color: #66bb6a;">10 minutes</strong></p>
+        <p style="margin-top: 15px; font-size: 12px; color: #666;">If you didn't request this, please ignore this email.</p>
+      </div>
+      
+      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 12px; color: #555;">
+        <p>© 2026 FitTrack — Track Every Rep. Own Every Day.</p>
+      </div>
+    </div>
+  `;
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent to ${email}`);
+    await transporter.sendMail({
+      from: `"FitTrack" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "🔐 Verify Your Email - FitTrack OTP",
+      html,
+    });
     return true;
   } catch (error) {
-    console.error("❌ Email send error:", error);
+    console.error("Email error:", error);
+    return false;
+  }
+};
+
+// Send Forgot Password OTP
+export const sendOTPEmail = async (email, otp, name) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; color: #fff;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #42a5f5; margin: 0;">💪 FitTrack</h1>
+        <p style="color: #888;">Password Reset Request</p>
+      </div>
+      
+      <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; text-align: center;">
+        <p style="color: #ccc;">Hi ${name || "User"},</p>
+        <p>Your OTP for password reset is:</p>
+        
+        <div style="font-size: 42px; font-weight: 800; letter-spacing: 8px; background: rgba(66,165,245,0.2); padding: 15px 25px; border-radius: 12px; display: inline-block; font-family: monospace;">
+          ${otp}
+        </div>
+        
+        <p style="margin-top: 25px; font-size: 14px; color: #888;">⏰ Valid for <strong style="color: #42a5f5;">10 minutes</strong></p>
+      </div>
+      
+      <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #555;">
+        <p>If you didn't request this, please ignore this email.</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: `"FitTrack" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "🔐 Password Reset OTP - FitTrack",
+      html,
+    });
+    return true;
+  } catch (error) {
+    console.error("Email error:", error);
     return false;
   }
 };

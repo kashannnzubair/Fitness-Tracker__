@@ -2,10 +2,11 @@ import React, { useState, useEffect } from "react";
 import styled, { keyframes } from "styled-components";
 import { 
   LocalFireDepartment, Egg, Grass, Bolt, WaterDrop,
-  Restaurant, Add, Remove, Search, CheckCircle,
-  BreakfastDining, LunchDining, DinnerDining, BakeryDining
+  Restaurant, Add, Remove, CheckCircle,
+  EmojiEvents
 } from "@mui/icons-material";
-import { CircularProgress, IconButton, TextField, Autocomplete } from "@mui/material";
+import { IconButton, TextField, Autocomplete, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress } from "@mui/material";
+import { saveDiet, getDiet, saveWaterIntake, getWaterIntake } from "../api";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -116,7 +117,6 @@ const StatTarget = styled.div`
   text-align: right;
 `;
 
-// Main Content Grid
 const ContentGrid = styled.div`
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
@@ -152,7 +152,6 @@ const MealGrid = styled.div`
   margin-bottom: 24px;
 `;
 
-// FIXED: Added missing components
 const MealCard = styled.div`
   background: ${({ theme }) => theme.bgLight};
   border-radius: 16px;
@@ -188,6 +187,8 @@ const MealItems = styled.div`
   color: ${({ theme }) => theme.text_secondary};
   margin-bottom: 12px;
   min-height: 60px;
+  max-height: 120px;
+  overflow-y: auto;
 `;
 
 const MealCalories = styled.div`
@@ -219,7 +220,6 @@ const AddFoodBtn = styled.button`
   }
 `;
 
-// Water Intake Card
 const WaterCard = styled.div`
   background: ${({ theme }) => theme.card};
   border: 1px solid ${({ theme }) => theme.border};
@@ -230,36 +230,30 @@ const WaterCard = styled.div`
 
 const WaterGlasses = styled.div`
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: center;
   margin: 20px 0;
   flex-wrap: wrap;
 `;
 
 const WaterGlass = styled.div`
-  width: 50px;
-  height: 60px;
+  width: 45px;
+  height: 55px;
   background: ${({ $filled, theme }) => $filled ? theme.primary : theme.bgLight};
-  border: 2px solid ${({ theme }) => theme.border};
-  border-radius: 0 0 20px 20px;
+  border: 2px solid ${({ $filled, theme }) => $filled ? theme.primary : theme.border};
+  border-radius: 0 0 15px 15px;
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   position: relative;
   
   &::before {
-    content: '';
+    content: '💧';
     position: absolute;
-    top: -8px;
+    top: -20px;
     left: 50%;
     transform: translateX(-50%);
-    width: 30px;
-    height: 15px;
-    background: ${({ $filled, theme }) => $filled ? theme.primary : theme.bgLight};
-    border: 2px solid ${({ theme }) => theme.border};
-    border-radius: 5px 5px 0 0;
+    font-size: 12px;
+    opacity: ${({ $filled }) => $filled ? 1 : 0.3};
   }
   
   &:hover {
@@ -267,30 +261,54 @@ const WaterGlass = styled.div`
   }
 `;
 
-const WaterCount = styled.div`
-  text-align: center;
+const WaterControls = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
   margin-top: 15px;
-  font-size: 14px;
-  color: ${({ theme }) => theme.text_secondary};
 `;
 
-// Food Database
+const WaterButton = styled(IconButton)`
+  && {
+    background: ${({ theme }) => theme.bgLight};
+    color: ${({ theme }) => theme.primary};
+    
+    &:hover {
+      background: ${({ theme }) => theme.primary};
+      color: white;
+    }
+  }
+`;
+
+const WaterProgress = styled.div`
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid ${({ theme }) => theme.border};
+`;
+
 const foodDatabase = [
-  { name: "Chicken Breast (150g)", calories: 165, protein: 31, carbs: 0, fat: 3.6, meal: "lunch" },
-  { name: "Rice (1 cup cooked)", calories: 206, protein: 4, carbs: 45, fat: 0.4, meal: "lunch" },
-  { name: "Apple (1 medium)", calories: 95, protein: 0.5, carbs: 25, fat: 0.3, meal: "snacks" },
-  { name: "Banana (1 medium)", calories: 105, protein: 1.3, carbs: 27, fat: 0.4, meal: "snacks" },
-  { name: "Eggs (2 large)", calories: 144, protein: 12, carbs: 1, fat: 10, meal: "breakfast" },
-  { name: "Oatmeal (1 cup)", calories: 158, protein: 5.5, carbs: 27, fat: 3.2, meal: "breakfast" },
-  { name: "Salmon (150g)", calories: 312, protein: 33, carbs: 0, fat: 19, meal: "dinner" },
-  { name: "Broccoli (100g)", calories: 34, protein: 2.8, carbs: 7, fat: 0.4, meal: "dinner" },
-  { name: "Greek Yogurt (1 cup)", calories: 150, protein: 20, carbs: 8, fat: 5, meal: "breakfast" },
-  { name: "Whey Protein (1 scoop)", calories: 120, protein: 24, carbs: 3, fat: 1.5, meal: "snacks" },
-  { name: "Almonds (30g)", calories: 173, protein: 6, carbs: 6, fat: 15, meal: "snacks" },
-  { name: "Sweet Potato (1 medium)", calories: 112, protein: 2, carbs: 26, fat: 0.1, meal: "dinner" },
-  { name: "Biryani (1 plate)", calories: 490, protein: 22, carbs: 58, fat: 18, meal: "lunch" },
-  { name: "Pizza (1 slice)", calories: 285, protein: 12, carbs: 36, fat: 10, meal: "dinner" },
-  { name: "Burger (1 regular)", calories: 354, protein: 20, carbs: 30, fat: 18, meal: "lunch" },
+  { name: "Eggs (2 large)", calories: 144, protein: 12, carbs: 1, fat: 10 },
+  { name: "Oatmeal (1 cup)", calories: 158, protein: 5.5, carbs: 27, fat: 3.2 },
+  { name: "Greek Yogurt (1 cup)", calories: 150, protein: 20, carbs: 8, fat: 5 },
+  { name: "Pancakes (2)", calories: 260, protein: 8, carbs: 35, fat: 10 },
+  { name: "Cereal with Milk", calories: 220, protein: 8, carbs: 40, fat: 4 },
+  { name: "Chicken Breast (150g)", calories: 165, protein: 31, carbs: 0, fat: 3.6 },
+  { name: "Rice (1 cup cooked)", calories: 206, protein: 4, carbs: 45, fat: 0.4 },
+  { name: "Biryani (1 plate)", calories: 490, protein: 22, carbs: 58, fat: 18 },
+  { name: "Burger (1 regular)", calories: 354, protein: 20, carbs: 30, fat: 18 },
+  { name: "Sandwich", calories: 320, protein: 15, carbs: 35, fat: 12 },
+  { name: "Salmon (150g)", calories: 312, protein: 33, carbs: 0, fat: 19 },
+  { name: "Broccoli (100g)", calories: 34, protein: 2.8, carbs: 7, fat: 0.4 },
+  { name: "Sweet Potato (1 medium)", calories: 112, protein: 2, carbs: 26, fat: 0.1 },
+  { name: "Pizza (1 slice)", calories: 285, protein: 12, carbs: 36, fat: 10 },
+  { name: "Pasta (1 cup)", calories: 220, protein: 8, carbs: 43, fat: 1.3 },
+  { name: "Steak (200g)", calories: 520, protein: 45, carbs: 0, fat: 35 },
+  { name: "Apple (1 medium)", calories: 95, protein: 0.5, carbs: 25, fat: 0.3 },
+  { name: "Banana (1 medium)", calories: 105, protein: 1.3, carbs: 27, fat: 0.4 },
+  { name: "Whey Protein (1 scoop)", calories: 120, protein: 24, carbs: 3, fat: 1.5 },
+  { name: "Almonds (30g)", calories: 173, protein: 6, carbs: 6, fat: 15 },
+  { name: "Protein Bar", calories: 200, protein: 20, carbs: 22, fat: 8 },
 ];
 
 const tips = [
@@ -335,58 +353,131 @@ const Diet = () => {
     dinner: [],
     snacks: []
   });
-  const [selectedMeal, setSelectedMeal] = useState("lunch");
+  const [currentMealType, setCurrentMealType] = useState("");
   const [selectedFood, setSelectedFood] = useState(null);
   const [waterIntake, setWaterIntake] = useState(0);
   const [showAddFood, setShowAddFood] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastOpen, setToastOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const savedMeals = localStorage.getItem("fittrack-meals");
-    const savedWater = localStorage.getItem("fittrack-water");
-    if (savedMeals) setMeals(JSON.parse(savedMeals));
-    if (savedWater) setWaterIntake(parseInt(savedWater));
+    loadData();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("fittrack-meals", JSON.stringify(meals));
-    localStorage.setItem("fittrack-water", waterIntake.toString());
-  }, [meals, waterIntake]);
-
-  const addFood = () => {
-    if (selectedFood) {
-      setMeals(prev => ({
-        ...prev,
-        [selectedMeal]: [...prev[selectedMeal], { ...selectedFood, id: Date.now() }]
-      }));
-      setSelectedFood(null);
-      setShowAddFood(false);
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const dietRes = await getDiet(today);
+      if (dietRes.data?.diet?.meals) {
+        setMeals(dietRes.data.diet.meals);
+      }
+      
+      const waterRes = await getWaterIntake(today);
+      if (waterRes.data?.water) {
+        setWaterIntake(waterRes.data.water.glasses || 0);
+      }
+    } catch (err) {
+      console.log("Error loading data:", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const removeFood = (mealType, foodId) => {
-    setMeals(prev => ({
-      ...prev,
-      [mealType]: prev[mealType].filter(f => f.id !== foodId)
-    }));
+  // Save diet to backend
+  const saveDietToBackend = async (updatedMeals) => {
+    try {
+      const totals = calculateTotals(updatedMeals);
+      await saveDiet({
+        date: new Date().toISOString().split('T')[0],
+        meals: updatedMeals,
+        totalCalories: totals.calories,
+        totalProtein: totals.protein,
+        totalCarbs: totals.carbs,
+        totalFat: totals.fat
+      });
+      console.log("Diet saved to backend");
+    } catch (err) {
+      console.log("Error saving diet:", err);
+    }
+  };
+
+  const saveWaterToBackend = async (value) => {
+    try {
+      await saveWaterIntake({
+        date: new Date().toISOString().split('T')[0],
+        glasses: value,
+        totalMl: value * 250
+      });
+    } catch (err) {
+      console.log("Error saving water:", err);
+    }
+  };
+
+  const saveWaterIntakeHandler = (value) => {
+    setWaterIntake(value);
+    saveWaterToBackend(value);
+    setToastMessage(`💧 Water intake updated to ${value}/8 glasses`);
+    setToastOpen(true);
   };
 
   const addWater = () => {
-    if (waterIntake < 8) setWaterIntake(prev => prev + 1);
+    if (waterIntake < 8) {
+      saveWaterIntakeHandler(waterIntake + 1);
+    }
   };
 
   const removeWater = () => {
-    if (waterIntake > 0) setWaterIntake(prev => prev - 1);
+    if (waterIntake > 0) {
+      saveWaterIntakeHandler(waterIntake - 1);
+    }
   };
 
-  const calculateTotals = () => {
+  const openAddFoodModal = (mealType) => {
+    setCurrentMealType(mealType);
+    setSelectedFood(null);
+    setShowAddFood(true);
+  };
+
+  const addFood = async () => {
+    if (selectedFood && currentMealType) {
+      const updatedMeals = {
+        ...meals,
+        [currentMealType]: [...meals[currentMealType], { ...selectedFood, id: Date.now() }]
+      };
+      setMeals(updatedMeals);
+      await saveDietToBackend(updatedMeals);
+      setSelectedFood(null);
+      setShowAddFood(false);
+      setToastMessage(`✅ ${selectedFood.name} added to ${currentMealType.charAt(0).toUpperCase() + currentMealType.slice(1)}`);
+      setToastOpen(true);
+    }
+  };
+
+  const removeFood = async (mealType, foodId) => {
+    const updatedMeals = {
+      ...meals,
+      [mealType]: meals[mealType].filter(f => f.id !== foodId)
+    };
+    setMeals(updatedMeals);
+    await saveDietToBackend(updatedMeals);
+    setToastMessage(`❌ Food removed from ${mealType}`);
+    setToastOpen(true);
+  };
+
+  const calculateTotals = (mealData = meals) => {
     let calories = 0, protein = 0, carbs = 0, fat = 0;
-    Object.values(meals).forEach(meal => {
-      meal.forEach(food => {
-        calories += food.calories || 0;
-        protein += food.protein || 0;
-        carbs += food.carbs || 0;
-        fat += food.fat || 0;
-      });
+    Object.values(mealData).forEach(meal => {
+      if (meal && Array.isArray(meal)) {
+        meal.forEach(food => {
+          calories += food.calories || 0;
+          protein += food.protein || 0;
+          carbs += food.carbs || 0;
+          fat += food.fat || 0;
+        });
+      }
     });
     return { calories, protein, carbs, fat };
   };
@@ -403,6 +494,16 @@ const Diet = () => {
     snacks: { icon: "🍎", title: "Snacks" }
   };
 
+  const waterPercentage = (waterIntake / 8) * 100;
+
+  if (isLoading) {
+    return (
+      <Container style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
+
   return (
     <Container>
       <Header>
@@ -410,7 +511,6 @@ const Diet = () => {
         <Subtitle>Track your meals, monitor macros, and reach your fitness goals</Subtitle>
       </Header>
 
-      {/* Stats Cards */}
       <StatsGrid>
         <StatCard>
           <StatHeader>
@@ -419,9 +519,9 @@ const Diet = () => {
           </StatHeader>
           <StatValue>{totals.calories} / {goals.calories} kcal</StatValue>
           <ProgressBar>
-            <ProgressFill $progress={(totals.calories / goals.calories) * 100} $color="orange" />
+            <ProgressFill $progress={Math.min((totals.calories / goals.calories) * 100, 100)} $color="orange" />
           </ProgressBar>
-          <StatTarget>{Math.round((totals.calories / goals.calories) * 100)}% of daily goal</StatTarget>
+          <StatTarget>{Math.min(Math.round((totals.calories / goals.calories) * 100), 100)}% of daily goal</StatTarget>
         </StatCard>
 
         <StatCard>
@@ -431,7 +531,7 @@ const Diet = () => {
           </StatHeader>
           <StatValue>{totals.protein} / {goals.protein} g</StatValue>
           <ProgressBar>
-            <ProgressFill $progress={(totals.protein / goals.protein) * 100} $color="primary" />
+            <ProgressFill $progress={Math.min((totals.protein / goals.protein) * 100, 100)} $color="primary" />
           </ProgressBar>
         </StatCard>
 
@@ -442,7 +542,7 @@ const Diet = () => {
           </StatHeader>
           <StatValue>{totals.carbs} / {goals.carbs} g</StatValue>
           <ProgressBar>
-            <ProgressFill $progress={(totals.carbs / goals.carbs) * 100} $color="green" />
+            <ProgressFill $progress={Math.min((totals.carbs / goals.carbs) * 100, 100)} $color="green" />
           </ProgressBar>
         </StatCard>
 
@@ -453,13 +553,12 @@ const Diet = () => {
           </StatHeader>
           <StatValue>{totals.fat} / {goals.fat} g</StatValue>
           <ProgressBar>
-            <ProgressFill $progress={(totals.fat / goals.fat) * 100} $color="yellow" />
+            <ProgressFill $progress={Math.min((totals.fat / goals.fat) * 100, 100)} $color="yellow" />
           </ProgressBar>
         </StatCard>
       </StatsGrid>
 
       <ContentGrid>
-        {/* Left Side - Meal Logging */}
         <MealSection>
           <SectionTitle><Restaurant /> Log Your Meal</SectionTitle>
           
@@ -471,14 +570,16 @@ const Diet = () => {
                   <MealTitle>{value.title}</MealTitle>
                 </MealHeader>
                 <MealItems>
-                  {meals[key].length > 0 ? (
+                  {meals[key] && meals[key].length > 0 ? (
                     meals[key].map(food => (
-                      <div key={food.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div key={food.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <span style={{ color: '#fff' }}>{food.name}</span>
-                        <span style={{ color: '#FF9F0A' }}>{food.calories} cal</span>
-                        <IconButton size="small" onClick={() => removeFood(key, food.id)} sx={{ padding: 0 }}>
-                          <Remove sx={{ fontSize: 14, color: '#FF453A' }} />
-                        </IconButton>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ color: '#FF9F0A' }}>{food.calories} cal</span>
+                          <IconButton size="small" onClick={() => removeFood(key, food.id)} sx={{ padding: 0 }}>
+                            <Remove sx={{ fontSize: 14, color: '#FF453A' }} />
+                          </IconButton>
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -486,77 +587,54 @@ const Diet = () => {
                   )}
                 </MealItems>
                 <MealCalories>
-                  Total: {meals[key].reduce((sum, f) => sum + (f.calories || 0), 0)} kcal
+                  Total: {meals[key]?.reduce((sum, f) => sum + (f.calories || 0), 0) || 0} kcal
                 </MealCalories>
-                <AddFoodBtn onClick={() => { setSelectedMeal(key); setShowAddFood(!showAddFood); }}>
+                <AddFoodBtn onClick={() => openAddFoodModal(key)}>
                   <Add /> Add Food
                 </AddFoodBtn>
               </MealCard>
             ))}
           </MealGrid>
-
-          {/* Add Food Section */}
-          {showAddFood && (
-            <div style={{ marginTop: 20, padding: 16, background: '#1C1C2A', borderRadius: 16 }}>
-              <Autocomplete
-                fullWidth
-                options={foodDatabase.filter(f => f.meal === selectedMeal)}
-                getOptionLabel={(option) => option.name}
-                value={selectedFood}
-                onChange={(_, newValue) => setSelectedFood(newValue)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    placeholder="Search food..."
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        color: '#fff',
-                        '& fieldset': { borderColor: '#2C2C3A' }
-                      },
-                      '& .MuiInputLabel-root': { color: '#6C6C7A' }
-                    }}
-                  />
-                )}
-                renderOption={(props, option) => (
-                  <li {...props} style={{ color: '#000', background: '#fff' }}>
-                    <div>
-                      <div><strong>{option.name}</strong></div>
-                      <div style={{ fontSize: 11 }}>{option.calories} cal | P:{option.protein}g C:{option.carbs}g F:{option.fat}g</div>
-                    </div>
-                  </li>
-                )}
-              />
-              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                <button onClick={addFood} style={{ flex: 1, padding: 10, background: '#0A84FF', border: 'none', borderRadius: 10, color: 'white', cursor: 'pointer' }}>Add Food</button>
-                <button onClick={() => setShowAddFood(false)} style={{ padding: 10, background: 'transparent', border: '1px solid #2C2C3A', borderRadius: 10, color: '#fff', cursor: 'pointer' }}>Cancel</button>
-              </div>
-            </div>
-          )}
         </MealSection>
 
-        {/* Right Side - Water & Tips */}
         <div>
-          {/* Water Intake */}
           <WaterCard>
-            <SectionTitle><WaterDrop sx={{ color: '#0A84FF' }} /> Water Intake</SectionTitle>
+            <SectionTitle><WaterDrop sx={{ color: '#0A84FF' }} /> Water Intake Tracker</SectionTitle>
+            
             <WaterGlasses>
               {[...Array(8)].map((_, i) => (
-                <WaterGlass key={i} $filled={i < waterIntake} onClick={() => setWaterIntake(i + 1)} />
+                <WaterGlass 
+                  key={i} 
+                  $filled={i < waterIntake} 
+                  onClick={() => saveWaterIntakeHandler(i + 1)}
+                />
               ))}
             </WaterGlasses>
-            <WaterCount>
-              <IconButton onClick={removeWater} sx={{ color: '#fff' }}><Remove /></IconButton>
-              {waterIntake} / 8 glasses of water today
-              <IconButton onClick={addWater} sx={{ color: '#fff' }}><Add /></IconButton>
-              <br />
-              {8 - waterIntake} more glasses to go!
-            </WaterCount>
+            
+            <WaterControls>
+              <WaterButton onClick={removeWater} disabled={waterIntake === 0}>
+                <Remove />
+              </WaterButton>
+              <span style={{ fontSize: 18, fontWeight: 700, color: '#0A84FF' }}>
+                {waterIntake} / 8 glasses
+              </span>
+              <WaterButton onClick={addWater} disabled={waterIntake === 8}>
+                <Add />
+              </WaterButton>
+            </WaterControls>
+            
+            <WaterProgress>
+              <ProgressBar>
+                <ProgressFill $progress={waterPercentage} $color="primary" />
+              </ProgressBar>
+              <StatTarget>
+                {waterIntake === 8 ? "🎉 Great job! Stay hydrated!" : `${8 - waterIntake} more glasses to reach your goal`}
+              </StatTarget>
+            </WaterProgress>
           </WaterCard>
 
-          {/* Meal Plan Selector */}
           <WaterCard>
-            <SectionTitle><Restaurant /> Select Your Goal</SectionTitle>
+            <SectionTitle><EmojiEvents /> Select Your Goal</SectionTitle>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
               {Object.keys(mealPlans).map(plan => (
                 <PlanButton
@@ -569,29 +647,28 @@ const Diet = () => {
               ))}
             </div>
             <div style={{ marginTop: 16 }}>
-              <h4 style={{ color: '#0A84FF', marginBottom: 12 }}>Today's Recommended Plan</h4>
+              <h4 style={{ color: '#0A84FF', marginBottom: 12 }}>📋 Today's Recommended Plan</h4>
               {Object.entries(mealPlans[activeMealPlan]).map(([meal, content]) => {
                 if (meal === 'calories' || meal === 'icon') return null;
                 return (
-                  <div key={meal} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #2C2C3A' }}>
-                    <span style={{ color: '#fff' }}>{meal}:</span>
+                  <div key={meal} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #2C2C3A' }}>
+                    <span style={{ color: '#fff', fontWeight: 500 }}>{meal}:</span>
                     <span style={{ color: '#C0C0C8' }}>{content}</span>
                   </div>
                 );
               })}
-              <div style={{ marginTop: 12, padding: 10, background: '#0A84FF20', borderRadius: 10 }}>
-                <strong style={{ color: '#fff' }}>Total: {mealPlans[activeMealPlan].calories} kcal/day</strong>
+              <div style={{ marginTop: 12, padding: 12, background: '#0A84FF20', borderRadius: 12, textAlign: 'center' }}>
+                <strong style={{ color: '#fff' }}>🔥 Total: {mealPlans[activeMealPlan].calories} kcal/day</strong>
               </div>
             </div>
           </WaterCard>
 
-          {/* Tips */}
           <WaterCard>
             <SectionTitle>💡 Nutrition Tips</SectionTitle>
             {tips.map((tip, i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: i < tips.length - 1 ? '1px solid #2C2C3A' : 'none' }}>
+              <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: i < tips.length - 1 ? '1px solid #2C2C3A' : 'none' }}>
                 <div style={{ color: '#0A84FF' }}>{tip.icon}</div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, color: '#fff' }}>{tip.title}</div>
                   <div style={{ fontSize: 12, color: '#C0C0C8' }}>{tip.desc}</div>
                 </div>
@@ -600,6 +677,59 @@ const Diet = () => {
           </WaterCard>
         </div>
       </ContentGrid>
+
+      {/* Add Food Modal */}
+      <Dialog open={showAddFood} onClose={() => setShowAddFood(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ background: '#14141F', color: '#fff', borderBottom: '1px solid #2C2C3A' }}>
+          Add Food to {currentMealType?.charAt(0).toUpperCase() + currentMealType?.slice(1)}
+        </DialogTitle>
+        <DialogContent sx={{ background: '#14141F', mt: 2 }}>
+          <Autocomplete
+            fullWidth
+            options={foodDatabase}
+            getOptionLabel={(option) => option.name}
+            value={selectedFood}
+            onChange={(_, newValue) => setSelectedFood(newValue)}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder="Search food..."
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    color: '#fff',
+                    '& fieldset': { borderColor: '#2C2C3A' }
+                  },
+                  '& .MuiInputLabel-root': { color: '#6C6C7A' }
+                }}
+              />
+            )}
+            renderOption={(props, option) => (
+              <li {...props} style={{ color: '#000', background: '#fff' }}>
+                <div>
+                  <div><strong>{option.name}</strong></div>
+                  <div style={{ fontSize: 11 }}>{option.calories} cal | P:{option.protein}g C:{option.carbs}g F:{option.fat}g</div>
+                </div>
+              </li>
+            )}
+          />
+        </DialogContent>
+        <DialogActions sx={{ background: '#14141F', padding: 16, borderTop: '1px solid #2C2C3A' }}>
+          <Button onClick={() => setShowAddFood(false)} sx={{ color: '#6C6C7A' }}>Cancel</Button>
+          <Button onClick={addFood} variant="contained" sx={{ background: '#0A84FF' }}>Add Food</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={toastOpen}
+        autoHideDuration={2000}
+        onClose={() => setToastOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" sx={{ width: '100%', background: '#1C1C2A', color: '#fff' }}>
+          {toastMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

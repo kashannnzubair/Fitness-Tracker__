@@ -1,11 +1,155 @@
-import React, { useState } from "react";
-import styled from "styled-components";
+import React, { useState, useEffect } from "react";
+import styled, { keyframes } from "styled-components";
 import LogoImg from "../utils/Images/Logo.png";
-import { Link as LinkR, NavLink } from "react-router-dom";
-import { MenuRounded, DarkMode, LightMode } from "@mui/icons-material";
+import { Link as LinkR, NavLink, useNavigate } from "react-router-dom";
+import { MenuRounded, DarkMode, LightMode, FitnessCenter } from "@mui/icons-material";
 import { Avatar, IconButton, Tooltip } from "@mui/material";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../redux/reducers/userSlice";
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import ReminderModal from './ReminderModal';
+
+// ============ ANIMATIONS FOR LOGO ============
+const logoGlow = keyframes`
+  0% {
+    text-shadow: 0 0 5px rgba(10, 132, 255, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(10, 132, 255, 0.8);
+    transform: scale(1.02);
+  }
+  100% {
+    text-shadow: 0 0 5px rgba(10, 132, 255, 0.5);
+    transform: scale(1);
+  }
+`;
+
+const iconBounce = keyframes`
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-5px) rotate(5deg);
+  }
+  75% {
+    transform: translateY(3px) rotate(-3deg);
+  }
+`;
+
+const rotateIcon = keyframes`
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+`;
+
+const pulseRing = keyframes`
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+`;
+
+const floatLogo = keyframes`
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+`;
+
+// Styled Components for Logo
+const LogoWrapper = styled(LinkR)`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  animation: ${floatLogo} 3s ease-in-out infinite;
+  
+  &:hover {
+    transform: scale(1.02);
+  }
+`;
+
+const AnimatedIcon = styled.div`
+  position: relative;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${({ theme }) => theme.gradient};
+  border-radius: 12px;
+  animation: ${iconBounce} 2s ease-in-out infinite;
+  transition: all 0.3s ease;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: ${({ theme }) => theme.gradient};
+    border-radius: 12px;
+    opacity: 0.6;
+    animation: ${pulseRing} 2s ease-out infinite;
+  }
+  
+  svg {
+    font-size: 24px;
+    color: white;
+    animation: ${rotateIcon} 8s linear infinite;
+  }
+  
+  ${LogoWrapper}:hover & {
+    transform: scale(1.1);
+    
+    &::before {
+      animation: ${pulseRing} 1s ease-out infinite;
+    }
+  }
+`;
+
+const LogoText = styled.div`
+  font-weight: 800;
+  font-size: 24px;
+  background: ${({ theme }) => theme.gradient};
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: ${logoGlow} 3s ease-in-out infinite;
+  letter-spacing: 1px;
+  
+  .fit {
+    font-weight: 800;
+  }
+  
+  .track {
+    font-weight: 600;
+    opacity: 0.9;
+  }
+`;
+
+const SmallBadge = styled.div`
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #FF453A;
+  color: white;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 10px;
+  animation: ${pulseRing} 1.5s ease-in-out infinite;
+`;
 
 const Nav = styled.div`
   background: ${({ theme }) => theme.bg};
@@ -30,33 +174,6 @@ const NavContainer = styled.div`
   gap: 14px;
   align-items: center;
   justify-content: space-between;
-`;
-
-const NavLogo = styled(LinkR)`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-weight: 700;
-  font-size: 20px;
-  text-decoration: none;
-  background: ${({ theme }) => theme.gradient};
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  transition: transform 0.3s ease;
-  
-  &:hover {
-    transform: scale(1.05);
-  }
-`;
-
-const Logo = styled.img`
-  height: 42px;
-  transition: transform 0.3s ease;
-  
-  &:hover {
-    transform: rotate(5deg);
-  }
 `;
 
 const Mobileicon = styled.div`
@@ -139,22 +256,6 @@ const ThemeToggle = styled(IconButton)`
   }
 `;
 
-const TextButton = styled.div`
-  color: ${({ theme }) => theme.text_secondary};
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 8px;
-  
-  &:hover {
-    color: ${({ theme }) => theme.primary};
-    background: ${({ theme }) => theme.primary + "10"};
-    transform: translateY(-2px);
-  }
-`;
-
 const MobileMenu = styled.ul`
   display: flex;
   flex-direction: column;
@@ -196,20 +297,19 @@ const UserName = styled.span`
   }
 `;
 
-// Profile Menu Items
 const ProfileMenu = styled.div`
   position: relative;
 `;
 
 const ProfileDropdown = styled.div`
   position: absolute;
-  top: 50px;
+  top: 55px;
   right: 0;
   background: ${({ theme }) => theme.card};
   border: 1px solid ${({ theme }) => theme.border};
   border-radius: 16px;
   padding: 8px;
-  min-width: 200px;
+  min-width: 180px;
   z-index: 1000;
   box-shadow: 0 10px 30px ${({ theme }) => theme.shadow};
   animation: fadeIn 0.2s ease;
@@ -231,17 +331,26 @@ const DropdownItem = styled.div`
   }
 `;
 
+const ReminderButton = styled(IconButton)`
+  transition: all 0.3s ease !important;
+  
+  &:hover {
+    transform: scale(1.1) rotate(15deg);
+  }
+`;
+
 const Navbar = ({ toggleTheme, isDark }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [isOpen, setisOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
   const user = useSelector((state) => state.user?.user);
   
   const userName = user?.name || "User";
   const userImg = user?.img || user?.profilePicture || null;
   const userInitial = userName?.charAt(0)?.toUpperCase() || "U";
 
-  // Navigation items - COMPLETE LIST
   const navItems = [
     { name: "Dashboard", path: "/" },
     { name: "Workouts", path: "/workouts" },
@@ -249,97 +358,110 @@ const Navbar = ({ toggleTheme, isDark }) => {
     { name: "Tutorials", path: "/tutorials" },
     { name: "Diet", path: "/diet" },
     { name: "Reports", path: "/reports" },
-    { name: "Contact", path: "/contact" },
+    { name: "Feedback", path: "/feedback" },
   ];
 
-  const profileItems = [
-    { name: "My Profile", path: "/profile", icon: "👤" },
-    { name: "Settings", path: "/settings", icon: "⚙️" },
-  ];
+  const handleLogout = () => {
+    dispatch(logout());
+    localStorage.removeItem("fittrack-app-token");
+    localStorage.removeItem("fittrack-app-user");
+    navigate("/auth");
+    setIsProfileOpen(false);
+  };
+
+  const handleNavigation = (path) => {
+    navigate(path);
+    setIsProfileOpen(false);
+  };
 
   return (
-    <Nav>
-      <NavContainer>
-        <Mobileicon onClick={() => setisOpen(!isOpen)}>
-          <MenuRounded sx={{ color: "inherit", fontSize: "28px" }} />
-        </Mobileicon>
-        
-        <NavLogo to="/">
-          <Logo src={LogoImg} />
-          FitTrack
-        </NavLogo>
-
-        {/* Mobile Menu */}
-        <MobileMenu $isOpen={isOpen}>
-          {navItems.map((item, i) => (
-            <Navlink 
-              key={item.name}
-              to={item.path}
-              onClick={() => setisOpen(false)}
-            >
-              {item.name}
-            </Navlink>
-          ))}
-        </MobileMenu>
-
-        {/* Desktop Menu */}
-        <NavItems>
-          {navItems.map((item) => (
-            <Navlink key={item.name} to={item.path}>
-              {item.name}
-            </Navlink>
-          ))}
-        </NavItems>
-
-        <UserContainer>
-          <Tooltip title={isDark ? "Light Mode" : "Dark Mode"}>
-            <ThemeToggle onClick={toggleTheme}>
-              {isDark ? <LightMode sx={{ color: "#FFD60A" }} /> : <DarkMode sx={{ color: "#0A84FF" }} />}
-            </ThemeToggle>
-          </Tooltip>
+    <>
+      <Nav>
+        <NavContainer>
+          <Mobileicon onClick={() => setisOpen(!isOpen)}>
+            <MenuRounded sx={{ color: "inherit", fontSize: "28px" }} />
+          </Mobileicon>
           
-          <ProfileMenu>
-            <Tooltip title={userName}>
-              <StyledAvatar 
-                src={userImg} 
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
+          {/* Animated Logo */}
+          <LogoWrapper to="/">
+            <AnimatedIcon>
+              <FitnessCenter />
+              <SmallBadge>🔥</SmallBadge>
+            </AnimatedIcon>
+            <LogoText>
+              <span className="fit">Fit</span>
+              <span className="track">Track</span>
+            </LogoText>
+          </LogoWrapper>
+
+          <MobileMenu $isOpen={isOpen}>
+            {navItems.map((item) => (
+              <Navlink 
+                key={item.name}
+                to={item.path}
+                onClick={() => setisOpen(false)}
               >
-                {!userImg && userInitial}
-              </StyledAvatar>
+                {item.name}
+              </Navlink>
+            ))}
+          </MobileMenu>
+
+          <NavItems>
+            {navItems.map((item) => (
+              <Navlink key={item.name} to={item.path}>
+                {item.name}
+              </Navlink>
+            ))}
+          </NavItems>
+
+          <UserContainer>
+            <Tooltip title="Set Reminder">
+              <ReminderButton onClick={() => setShowReminderModal(true)}>
+                <NotificationsActiveIcon sx={{ color: isDark ? "#FFD60A" : "#0A84FF" }} />
+              </ReminderButton>
             </Tooltip>
             
-            {isProfileOpen && (
-              <ProfileDropdown>
-                <DropdownItem onClick={() => {
-                  window.location.href = "/profile";
-                  setIsProfileOpen(false);
-                }}>
-                  👤 My Profile
-                </DropdownItem>
-                <DropdownItem onClick={() => {
-                  window.location.href = "/settings";
-                  setIsProfileOpen(false);
-                }}>
-                  ⚙️ Settings
-                </DropdownItem>
-                <DropdownItem onClick={() => {
-                  dispatch(logout());
-                  setIsProfileOpen(false);
-                }}>
-                  🚪 Logout
-                </DropdownItem>
-              </ProfileDropdown>
-            )}
-          </ProfileMenu>
-          
-          <UserName>{userName}</UserName>
-          
-          <TextButton onClick={() => dispatch(logout())}>
-            Logout
-          </TextButton>
-        </UserContainer>
-      </NavContainer>
-    </Nav>
+            <Tooltip title={isDark ? "Light Mode" : "Dark Mode"}>
+              <ThemeToggle onClick={toggleTheme}>
+                {isDark ? <LightMode sx={{ color: "#FFD60A" }} /> : <DarkMode sx={{ color: "#0A84FF" }} />}
+              </ThemeToggle>
+            </Tooltip>
+            
+            <ProfileMenu>
+              <Tooltip title={userName}>
+                <StyledAvatar 
+                  src={userImg} 
+                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                >
+                  {!userImg && userInitial}
+                </StyledAvatar>
+              </Tooltip>
+              
+              {isProfileOpen && (
+                <ProfileDropdown>
+                  <DropdownItem onClick={() => handleNavigation("/profile")}>
+                    👤 My Profile
+                  </DropdownItem>
+                  <DropdownItem onClick={() => handleNavigation("/settings")}>
+                    ⚙️ Settings
+                  </DropdownItem>
+                  <DropdownItem onClick={handleLogout}>
+                    🚪 Logout
+                  </DropdownItem>
+                </ProfileDropdown>
+              )}
+            </ProfileMenu>
+            
+            <UserName>{userName}</UserName>
+          </UserContainer>
+        </NavContainer>
+      </Nav>
+      
+      <ReminderModal 
+        isOpen={showReminderModal} 
+        onClose={() => setShowReminderModal(false)}
+      />
+    </>
   );
 };
 

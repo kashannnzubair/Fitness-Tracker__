@@ -7,7 +7,7 @@ import {
   Email, Person, Lock, CheckCircle 
 } from '@mui/icons-material';
 import axios from 'axios';
-import { updateUser } from '../redux/reducers/userSlice';
+import { loginSuccess } from '../redux/reducers/userSlice';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -226,18 +226,31 @@ const Profile = () => {
       const imgBase64 = reader.result;
       setProfilePic(imgBase64);
       
-      // Upload to server
       try {
         setIsLoading(true);
         const res = await axios.patch('http://localhost:8000/api/user/profile', 
           { img: imgBase64 },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        dispatch(updateUser({ img: imgBase64 }));
+        
+        // Update Redux store
+        dispatch(loginSuccess({ 
+          token: token, 
+          user: { ...user, img: imgBase64 } 
+        }));
+        
+        // Update localStorage
+        localStorage.setItem("fittrack-app-user", JSON.stringify({ ...user, img: imgBase64 }));
+        
         setMessage('Profile picture updated!');
+        
+        // ✅ FORCE PAGE RELOAD AFTER 1 SECOND
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+        
       } catch (err) {
         setError('Failed to update profile picture');
-      } finally {
         setIsLoading(false);
       }
     };
@@ -275,7 +288,13 @@ const Profile = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      dispatch(updateUser({ name: formData.name, email: formData.email }));
+      dispatch(loginSuccess({ 
+        token: token, 
+        user: { ...user, name: formData.name, email: formData.email } 
+      }));
+      
+      localStorage.setItem("fittrack-app-user", JSON.stringify({ ...user, name: formData.name, email: formData.email }));
+      
       setMessage('Profile updated successfully!');
       setIsEditing(false);
       setFormData({
@@ -284,6 +303,8 @@ const Profile = () => {
         newPassword: '',
         confirmPassword: '',
       });
+      
+      setTimeout(() => setMessage(''), 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Update failed');
     } finally {

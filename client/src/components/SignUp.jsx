@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { UserRegister } from "../api";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "../redux/reducers/userSlice";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { Visibility, VisibilityOff } from "@mui/icons-material"; // ✅ ADD THIS IMPORT
 
 // Animations
 const slideUp = keyframes`
@@ -126,7 +126,9 @@ const Logo = styled.div`
   h1 {
     font-size: 28px; font-weight: 800;
     background: linear-gradient(135deg, #66bb6a, #ab47bc);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     margin: 0 0 5px 0;
   }
   p { color: rgba(255,255,255,0.4); font-size: 14px; margin: 0; }
@@ -334,21 +336,17 @@ const SignUp = () => {
         weight: parseFloat(weight) || null,
         fitnessGoal: goal
       });
-      const { token, user } = res.data;
       
+      // DIRECT LOGIN - NO VERIFICATION
+      const { token, user } = res.data;
       const userData = {
         ...user,
         img: user?.img || imgBase64 || null,
         name: user?.name || name,
-        height: height,
-        weight: weight,
-        fitnessGoal: goal
       };
-      
       dispatch(loginSuccess({ token, user: userData }));
       localStorage.setItem("fittrack-app-token", token);
       localStorage.setItem("fittrack-app-user", JSON.stringify(userData));
-      
       setToastUser({
         name: userData.name,
         img: userData.img,
@@ -369,7 +367,9 @@ const SignUp = () => {
           name={toastUser.name}
           img={toastUser.img}
           goal={toastUser.goal}
-          onDone={() => navigate("/")}
+          onDone={() => {
+            navigate("/");
+          }}
         />
       )}
 
@@ -403,28 +403,28 @@ const SignUp = () => {
 
             <Field>
               <Label>Full Name *</Label>
-              <Input type="text" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} disabled={!!toastUser} />
+              <Input type="text" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
 
             <Field>
               <Label>Email Address *</Label>
-              <Input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!toastUser} />
+              <Input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
 
             <Row>
               <Field>
                 <Label>Height (cm)</Label>
-                <Input type="number" placeholder="e.g., 175" value={height} onChange={(e) => setHeight(e.target.value)} disabled={!!toastUser} />
+                <Input type="number" placeholder="e.g., 175" value={height} onChange={(e) => setHeight(e.target.value)} />
               </Field>
               <Field>
                 <Label>Weight (kg)</Label>
-                <Input type="number" placeholder="e.g., 70" value={weight} onChange={(e) => setWeight(e.target.value)} disabled={!!toastUser} />
+                <Input type="number" placeholder="e.g., 70" value={weight} onChange={(e) => setWeight(e.target.value)} />
               </Field>
             </Row>
 
             <Field>
               <Label>Fitness Goal *</Label>
-              <GoalSelect value={goal} onChange={(e) => setGoal(e.target.value)} disabled={!!toastUser}>
+              <GoalSelect value={goal} onChange={(e) => setGoal(e.target.value)}>
                 <option value="weight_loss">🔥 Weight Loss 🔥</option>
                 <option value="muscle_gain">💪 Muscle Gain 💪</option>
                 <option value="maintain">⚖️ Maintain Weight ⚖️</option>
@@ -441,7 +441,6 @@ const SignUp = () => {
                     placeholder="Min 6 chars"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={!!toastUser}
                   />
                   <EyeButton type="button" onClick={() => setShowPassword(!showPassword)}>
                     {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
@@ -458,7 +457,6 @@ const SignUp = () => {
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleRegister()}
-                    disabled={!!toastUser}
                   />
                   <EyeButton type="button" onClick={() => setShowConfirm(!showConfirm)}>
                     {showConfirm ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
@@ -467,7 +465,7 @@ const SignUp = () => {
               </Field>
             </Row>
 
-            <SubmitBtn onClick={handleRegister} disabled={loading || !!toastUser}>
+            <SubmitBtn onClick={handleRegister} disabled={loading}>
               {loading ? <><Spinner /> Creating account...</> : "Create Account ➡️"}
             </SubmitBtn>
 
